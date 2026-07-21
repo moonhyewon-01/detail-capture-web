@@ -1,0 +1,17 @@
+{
+  "name": "detail-capture-web",
+  "version": "1.0.0",
+  "description": "상세페이지 고화질 캡쳐 웹앱 (지인 공유용)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.47.0"
+  }
+}

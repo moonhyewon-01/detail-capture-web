@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>상세페이지 캡쳐 툴</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    max-width: 720px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #222;
+    background: #fafafa;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; margin-top: 0; font-size: 14px; }
+  .card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 24px;
+    margin-top: 20px;
+  }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #333; }
+  input[type=text] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button {
+    background: #222;
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+  }
+  button:disabled { background: #999; cursor: not-allowed; }
+  #status { margin-top: 14px; font-size: 13px; color: #555; min-height: 20px; }
+  #result { margin-top: 20px; text-align: center; }
+  #result img { max-width: 100%; border: 1px solid #eee; border-radius: 8px; }
+  #downloadBtn {
+    display: inline-block;
+    margin-top: 12px;
+    background: #06a862;
+    text-decoration: none;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .hint { font-size: 12px; color: #999; margin-top: -8px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+  <h1>📸 상세페이지 캡쳐 툴</h1>
+  <p class="desc">URL을 넣으면 고화질 풀샷 이미지로 캡쳐해드려요.</p>
+
+  <div class="card">
+    <label for="url">캡쳐할 페이지 URL</label>
+    <input type="text" id="url" placeholder="https://smartstore.naver.com/.../products/..." />
+
+    <label for="selector">특정 영역만 캡쳐 (선택 사항)</label>
+    <input type="text" id="selector" placeholder="예: .se-main-container (비워두면 전체 페이지)" />
+    <p class="hint">개발자도구로 확인한 CSS 선택자를 알면 그 부분만 잘라서 캡쳐할 수 있어요. 모르면 비워두세요.</p>
+
+    <div class="row">
+      <div>
+        <label for="scale">해상도 배율</label>
+        <input type="text" id="scale" value="2" />
+      </div>
+    </div>
+
+    <button id="captureBtn">캡쳐하기</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="result"></div>
+
+<script>
+const btn = document.getElementById('captureBtn');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+
+btn.addEventListener('click', async () => {
+  const url = document.getElementById('url').value.trim();
+  const selector = document.getElementById('selector').value.trim();
+  const scale = document.getElementById('scale').value.trim() || '2';
+
+  if (!url) {
+    statusEl.textContent = 'URL을 입력해주세요.';
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.textContent = '캡쳐 중이에요... (페이지 길이에 따라 10~40초 정도 걸려요)';
+  resultEl.innerHTML = '';
+
+  try {
+    const res = await fetch('/api/capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, selector: selector || undefined, scale }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || '캡쳐에 실패했어요.');
+    }
+
+    const blob = await res.blob();
+    const imgUrl = URL.createObjectURL(blob);
+
+    resultEl.innerHTML = `
+      <img src="${imgUrl}" alt="캡쳐 결과" />
+      <br/>
+      <a id="downloadBtn" href="${imgUrl}" download="capture.png">이미지 다운로드</a>
+    `;
+    statusEl.textContent = '완료!';
+  } catch (e) {
+    statusEl.textContent = '⚠ ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
