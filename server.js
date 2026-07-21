@@ -91,6 +91,36 @@ async function autoScrollAndWaitImages(page, maxHeight = MAX_HEIGHT) {
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
+async function clickExpandButtons(page) {
+  try {
+    const keywords = ['더보기', '펼쳐보기', '상세정보', '상품상세', '상세보기', '전체보기'];
+    const clickedCount = await page.evaluate((kwList) => {
+      let count = 0;
+      const selectors = 'button, a, div[role="button"], span[role="button"], .btn, [class*="more"], [class*="expand"], [class*="detail"]';
+      const elements = Array.from(document.querySelectorAll(selectors));
+      for (const el of elements) {
+        const text = (el.innerText || el.textContent || '').trim();
+        if (!text || text.length > 25) continue;
+        const matches = kwList.some((kw) => text.includes(kw));
+        if (matches && el.offsetWidth > 0 && el.offsetHeight > 0) {
+          try {
+            el.click();
+            count++;
+          } catch (e) {}
+        }
+      }
+      return count;
+    }, keywords);
+
+    if (clickedCount > 0) {
+      console.log(`[INFO] 접힘/더보기 버튼 ${clickedCount}개 자동 클릭 완료`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  } catch (err) {
+    console.log('접힘 버튼 클릭 처리 중 오류 (무시됨):', err.message);
+  }
+}
+
 async function doCapture({ url, selector, scale }) {
   const br = await getBrowser();
   const context = await br.newContext({
@@ -110,6 +140,7 @@ async function doCapture({ url, selector, scale }) {
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForLoadState('networkidle').catch(() => {});
+    await clickExpandButtons(page);
     await autoScrollAndWaitImages(page, MAX_HEIGHT);
 
     let buffer;
