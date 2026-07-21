@@ -10,9 +10,20 @@
 import express from 'express';
 import { chromium } from 'playwright';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// 서버 시작 시 public 폴더 내용 디버깅용 로그
+const publicPath = path.join(__dirname, 'public');
+try {
+  const publicFiles = fs.readdirSync(publicPath);
+  console.log('[DEBUG] public 폴더 파일 목록:', publicFiles);
+} catch (err) {
+  console.error('[DEBUG] public 폴더 읽기 실패:', err);
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
