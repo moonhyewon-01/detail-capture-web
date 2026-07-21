@@ -34,6 +34,7 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 const MAX_SCALE = 2.5; // 무료 서버 메모리 보호용 상한
+const MAX_HEIGHT = 15000; // 메모리 보호용 최대 캡쳐 높이 (px)
 
 let browser; // 브라우저는 한 번만 켜두고 재사용 (매번 켜면 느리고 무거움)
 let isBusy = false; // 동시에 여러 캡쳐 요청이 들어와도 하나씩 순서대로 처리하기 위한 플래그
@@ -43,18 +44,27 @@ async function getBrowser() {
   if (!browser) {
     browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-dev-shm-usage'], // 무료 서버(컨테이너) 환경 호환용
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+      ],
     });
   }
   return browser;
 }
 
-async function autoScrollAndWaitImages(page) {
-  await page.evaluate(async () => {
+async function autoScrollAndWaitImages(page, maxHeight = MAX_HEIGHT) {
+  await page.evaluate(async (maxH) => {
     await new Promise((resolve) => {
       let total = 0;
       const timer = setInterval(() => {
-        const h = document.body.scrollHeight;
+        const h = Math.min(document.body.scrollHeight, maxH);
         window.scrollBy(0, 400);
         total += 400;
         if (total >= h) {
@@ -63,7 +73,7 @@ async function autoScrollAndWaitImages(page) {
         }
       }, 250);
     });
-  });
+  }, maxHeight);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(async () => {
     const imgs = Array.from(document.querySelectorAll('img'));
@@ -73,7 +83,7 @@ async function autoScrollAndWaitImages(page) {
         return new Promise((resolve) => {
           img.addEventListener('load', resolve, { once: true });
           img.addEventListener('error', resolve, { once: true });
-          setTimeout(resolve, 5000);
+          setTimeout(resolve, 3000);
         });
       })
     );
@@ -84,7 +94,7 @@ async function autoScrollAndWaitImages(page) {
 async function doCapture({ url, selector, scale }) {
   const br = await getBrowser();
   const context = await br.newContext({
-    viewport: { width: 860, height: 1000 },
+    viewport: { width: 800, height: 800 },
     deviceScaleFactor: Math.min(Number(scale) || 2, MAX_SCALE),
     locale: 'ko-KR',
   });
@@ -100,7 +110,7 @@ async function doCapture({ url, selector, scale }) {
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForLoadState('networkidle').catch(() => {});
-    await autoScrollAndWaitImages(page);
+    await autoScrollAndWaitImages(page, MAX_HEIGHT);
 
     let buffer;
     if (selector) {
@@ -109,6 +119,13 @@ async function doCapture({ url, selector, scale }) {
         ? await el.screenshot({ type: 'png' })
         : await page.screenshot({ fullPage: true, type: 'png' });
     } else {
+      const pageHeight = await page.evaluate(() => document.body.scrollHeight);
+      if (pageHeight > MAX_HEIGHT) {
+        await page.evaluate((maxH) => {
+          document.body.style.maxHeight = maxH + 'px';
+          document.body.style.overflow = 'hidden';
+        }, MAX_HEIGHT);
+      }
       buffer = await page.screenshot({ fullPage: true, type: 'png' });
     }
     return buffer;
